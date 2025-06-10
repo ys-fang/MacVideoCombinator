@@ -1,0 +1,75 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+venv.bak/
+env.bak/
+
+# PyInstaller
+*.manifest
+*.spec
+build/
+dist/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+.DocumentRevisions-V100
+.TemporaryItems
+.VolumeIcon.icns
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# Demo data (keep folder structure but not contents)
+demo_data/images/*
+demo_data/audio/*
+demo_data/output/*
+!demo_data/images/.gitkeep
+!demo_data/audio/.gitkeep
+!demo_data/output/.gitkeep
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+
+# Test files
+test_*.py
+*_test.py 
