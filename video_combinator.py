@@ -53,12 +53,36 @@ class VideoCombinatorApp:
         # 設定臨時目錄（解決只讀文件系統問題）
         self.temp_dir = tempfile.mkdtemp(prefix="VideoCombinator_")
         
+        # 檢查系統音訊支援
+        self.check_audio_support()
+        
         # 設定logging
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
         self.logger = logging.getLogger(__name__)
         
         self.setup_ui()
         self.start_worker_thread()
+    
+    def check_audio_support(self):
+        """檢查音訊支援"""
+        try:
+            # 簡單測試音訊功能
+            import subprocess
+            result = subprocess.run(['ffmpeg', '-version'], 
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                print("✅ FFmpeg 可用")
+            else:
+                print("⚠️ FFmpeg 可能有問題")
+        except Exception as e:
+            print(f"⚠️ FFmpeg 檢查失敗: {e}")
+            
+        try:
+            # 測試 MoviePy 音訊功能
+            from moviepy import AudioFileClip
+            print("✅ MoviePy 音訊模組可用")
+        except Exception as e:
+            print(f"❌ MoviePy 音訊模組錯誤: {e}")
     
     def setup_ui(self):
         """設置用戶界面"""
@@ -500,22 +524,51 @@ class VideoCombinatorApp:
                 
                 # 如果沒有圖片或音檔，跳過
                 if not img_path or not audio_path or not os.path.exists(img_path) or not os.path.exists(audio_path):
+                    self.root.after(0, lambda: self.log(f"跳過檔案：圖片={img_path}, 音檔={audio_path}"))
                     continue
                 
-                # 載入音檔取得時長
-                audio_clip = AudioFileClip(audio_path)
-                duration = audio_clip.duration
-                
-                # 建立圖片剪輯
-                img_clip = ImageClip(img_path, duration=duration)
-                
-                # 合併音檔
-                video_clip = img_clip.with_audio(audio_clip)
-                clips.append(video_clip)
+                try:
+                    # 載入音檔取得時長
+                    self.root.after(0, lambda a=audio_path: self.log(f"載入音檔：{os.path.basename(a)}"))
+                    audio_clip = AudioFileClip(audio_path)
+                    duration = audio_clip.duration
+                    self.root.after(0, lambda d=duration: self.log(f"音檔時長：{d:.2f}秒"))
+                    
+                    # 建立圖片剪輯
+                    self.root.after(0, lambda i=img_path: self.log(f"載入圖片：{os.path.basename(i)}"))
+                    img_clip = ImageClip(img_path, duration=duration)
+                    
+                    # 確認音訊資訊
+                    if hasattr(audio_clip, 'fps') and audio_clip.fps:
+                        self.root.after(0, lambda: self.log(f"音檔採樣率：{audio_clip.fps}Hz"))
+                    if hasattr(audio_clip, 'nchannels') and audio_clip.nchannels:
+                        self.root.after(0, lambda: self.log(f"音檔聲道數：{audio_clip.nchannels}"))
+                    
+                    # 合併音檔
+                    video_clip = img_clip.with_audio(audio_clip)
+                    
+                    # 確認合併後的影片是否有音訊
+                    if video_clip.audio is not None:
+                        self.root.after(0, lambda: self.log(f"✅ 音訊成功附加到影片"))
+                    else:
+                        self.root.after(0, lambda: self.log(f"⚠️ 警告：影片沒有音訊"))
+                    
+                    clips.append(video_clip)
+                    
+                except Exception as e:
+                    self.root.after(0, lambda err=str(e): self.log(f"處理音檔時發生錯誤: {err}"))
+                    # 如果音檔處理失敗，至少創建無聲影片
+                    img_clip = ImageClip(img_path, duration=2.0)  # 預設2秒
+                    clips.append(img_clip)
             
             if clips:
-                # 合併所有剪輯
-                final_clip = concatenate_videoclips(clips)
+                # 確認所有剪輯都有音訊
+                audio_clips_count = sum(1 for clip in clips if clip.audio is not None)
+                self.root.after(0, lambda count=audio_clips_count, total=len(clips): 
+                               self.log(f"剪輯統計：總數={total}, 有音訊={count}"))
+                
+                # 合併所有剪輯（確保音訊也被合併）
+                final_clip = concatenate_videoclips(clips, method='compose')
                 
                 # 生成檔案名稱：[第一個圖片檔名]-[最後一個圖片檔名].mp4
                 first_img_name = ""
@@ -543,14 +596,24 @@ class VideoCombinatorApp:
                 # 創建專用的臨時音檔路徑
                 temp_audio_path = os.path.join(self.temp_dir, f"temp_audio_{group_num}_{time.time()}.wav")
                 
+                # 確認最終剪輯是否有音訊
+                if final_clip.audio is not None:
+                    self.root.after(0, lambda: self.log(f"✅ 最終影片包含音訊，準備輸出"))
+                else:
+                    self.root.after(0, lambda: self.log(f"⚠️ 警告：最終影片沒有音訊"))
+                
                 # 輸出影片
+                self.root.after(0, lambda: self.log(f"開始輸出影片：{output_filename}"))
                 final_clip.write_videofile(output_path, 
                                          fps=24,
                                          codec='libx264',
                                          audio_codec='aac',
+                                         audio_bitrate='128k',
+                                         audio_fps=44100,
                                          temp_audiofile=temp_audio_path,
                                          remove_temp=True,
                                          write_logfile=False,
+                                         verbose=False,
                                          logger=None)
                 
                 # 釋放資源
