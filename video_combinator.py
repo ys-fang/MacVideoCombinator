@@ -11,6 +11,8 @@ import os
 import queue
 import threading
 import time
+import tempfile
+import shutil
 from pathlib import Path
 import re
 from typing import List, Tuple, Optional
@@ -47,6 +49,9 @@ class VideoCombinatorApp:
         self.last_images_path = os.path.expanduser("~")
         self.last_audio_path = os.path.expanduser("~")
         self.last_output_path = os.path.expanduser("~")
+        
+        # 設定臨時目錄（解決只讀文件系統問題）
+        self.temp_dir = tempfile.mkdtemp(prefix="VideoCombinator_")
         
         # 設定logging
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -535,11 +540,16 @@ class VideoCombinatorApp:
                 
                 output_path = os.path.join(job.output_path, output_filename)
                 
+                # 創建專用的臨時音檔路徑
+                temp_audio_path = os.path.join(self.temp_dir, f"temp_audio_{group_num}_{time.time()}.wav")
+                
                 # 輸出影片
                 final_clip.write_videofile(output_path, 
                                          fps=24,
                                          codec='libx264',
                                          audio_codec='aac',
+                                         temp_audiofile=temp_audio_path,
+                                         remove_temp=True,
                                          write_logfile=False,
                                          logger=None)
                 
@@ -585,6 +595,12 @@ def main():
     # 設定關閉事件
     def on_closing():
         if messagebox.askokcancel("退出", "確定要退出影片合併器嗎？"):
+            # 清理臨時目錄
+            try:
+                if hasattr(app, 'temp_dir') and os.path.exists(app.temp_dir):
+                    shutil.rmtree(app.temp_dir)
+            except Exception as e:
+                print(f"清理臨時目錄時發生錯誤: {e}")
             root.destroy()
     
     root.protocol("WM_DELETE_WINDOW", on_closing)
