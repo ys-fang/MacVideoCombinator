@@ -571,8 +571,10 @@ class VideoCombinatorApp:
                 if len(clips) == 1:
                     # 只有一個剪輯，直接使用
                     final_clip = clips[0]
+                    self.root.after(0, lambda: self.log(f"使用單一剪輯"))
                 else:
                     # 多個剪輯，需要串接
+                    self.root.after(0, lambda: self.log(f"串接 {len(clips)} 個剪輯，方法: compose"))
                     final_clip = concatenate_videoclips(clips, method='compose')
                 
                 # 生成檔案名稱：[第一個圖片檔名]-[最後一個圖片檔名].mp4
@@ -601,15 +603,10 @@ class VideoCombinatorApp:
                 # 確認最終剪輯是否有音訊
                 if final_clip.audio is not None:
                     self.root.after(0, lambda: self.log(f"✅ 最終影片包含音訊，準備輸出"))
+                    self.root.after(0, lambda: self.log(f"   最終音頻時長: {final_clip.audio.duration:.2f}秒"))
+                    self.root.after(0, lambda: self.log(f"   最終音頻採樣率: {final_clip.audio.fps}Hz"))
                 else:
                     self.root.after(0, lambda: self.log(f"⚠️ 警告：最終影片沒有音訊"))
-                
-                # 輸出影片 - 確保所有臨時檔案都在可寫入的目錄
-                self.root.after(0, lambda: self.log(f"開始輸出影片：{output_filename}"))
-                
-                # 創建唯一的臨時音頻檔案名稱
-                temp_audio_filename = f"temp_audio_{group_num}_{int(time.time() * 1000)}.wav"
-                temp_audio_path = os.path.join(self.temp_dir, temp_audio_filename)
                 
                 # 設定 MoviePy 環境變數，強制使用我們的臨時目錄
                 import os as os_module
@@ -625,58 +622,17 @@ class VideoCombinatorApp:
                     
                     self.root.after(0, lambda: self.log(f"🗂️ 臨時目錄設定為：{self.temp_dir}"))
                     
-                    # 方法1：基本參數 + 強制臨時目錄
-                    try:
-                        final_clip.write_videofile(output_path, 
-                                                 fps=24,
-                                                 codec='libx264',
-                                                 audio_codec='aac',
-                                                 temp_audiofile=temp_audio_path,
-                                                 remove_temp=True,
-                                                 write_logfile=False,
-                                                 logger=None)
-                        self.root.after(0, lambda: self.log(f"✅ 影片輸出成功"))
-                        
-                    except Exception as e:
-                        self.root.after(0, lambda err=str(e): self.log(f"方法1失敗: {err}"))
-                        
-                        # 方法2：嘗試不同的編碼器
-                        try:
-                            # 清理之前的臨時檔案
-                            if os.path.exists(temp_audio_path):
-                                os.remove(temp_audio_path)
-                            
-                            # 使用新的臨時檔案名稱
-                            temp_audio_filename2 = f"temp_audio2_{group_num}_{int(time.time() * 1000)}.wav"
-                            temp_audio_path2 = os.path.join(self.temp_dir, temp_audio_filename2)
-                            
-                            self.root.after(0, lambda: self.log(f"嘗試方法2，臨時音頻：{temp_audio_path2}"))
-                            
-                            final_clip.write_videofile(output_path, 
-                                                     fps=24,
-                                                     codec='libx264',
-                                                     audio_codec='libmp3lame',  # 改用mp3編碼
-                                                     temp_audiofile=temp_audio_path2,
-                                                     remove_temp=True,
-                                                     write_logfile=False,
-                                                     logger=None)
-                            self.root.after(0, lambda: self.log(f"✅ 影片輸出成功（方法2）"))
-                            
-                        except Exception as e2:
-                            self.root.after(0, lambda err=str(e2): self.log(f"方法2也失敗: {err}"))
-                            
-                            # 方法3：最基本的輸出（可能沒有音頻）
-                            try:
-                                self.root.after(0, lambda: self.log(f"嘗試方法3：基本輸出（可能無音頻）"))
-                                final_clip.write_videofile(output_path, 
-                                                         fps=24,
-                                                         codec='libx264',
-                                                         write_logfile=False,
-                                                         logger=None)
-                                self.root.after(0, lambda: self.log(f"⚠️ 影片輸出成功但可能無音頻（方法3）"))
-                            except Exception as e3:
-                                self.root.after(0, lambda err=str(e3): self.log(f"所有輸出方法都失敗: {err}"))
-                                raise e3
+                    # 輸出影片 - 使用測試證明有效的基本AAC方法
+                    self.root.after(0, lambda: self.log(f"開始輸出影片：{output_filename}"))
+                    
+                    final_clip.write_videofile(output_path, 
+                                             fps=24,
+                                             codec='libx264',
+                                             audio_codec='aac',
+                                             write_logfile=False,
+                                             logger=None)
+                    
+                    self.root.after(0, lambda: self.log(f"✅ 影片輸出成功"))
                     
                 finally:
                     # 恢復原始環境變數
