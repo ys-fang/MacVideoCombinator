@@ -567,8 +567,13 @@ class VideoCombinatorApp:
                 self.root.after(0, lambda count=audio_clips_count, total=len(clips): 
                                self.log(f"剪輯統計：總數={total}, 有音訊={count}"))
                 
-                # 合併所有剪輯（確保音訊也被合併）
-                final_clip = concatenate_videoclips(clips, method='compose')
+                # 合併所有剪輯
+                if len(clips) == 1:
+                    # 只有一個剪輯，直接使用
+                    final_clip = clips[0]
+                else:
+                    # 多個剪輯，需要串接
+                    final_clip = concatenate_videoclips(clips, method='compose')
                 
                 # 生成檔案名稱：[第一個圖片檔名]-[最後一個圖片檔名].mp4
                 first_img_name = ""
@@ -593,27 +598,42 @@ class VideoCombinatorApp:
                 
                 output_path = os.path.join(job.output_path, output_filename)
                 
-                # 創建專用的臨時音檔路徑
-                temp_audio_path = os.path.join(self.temp_dir, f"temp_audio_{group_num}_{time.time()}.wav")
-                
                 # 確認最終剪輯是否有音訊
                 if final_clip.audio is not None:
                     self.root.after(0, lambda: self.log(f"✅ 最終影片包含音訊，準備輸出"))
                 else:
                     self.root.after(0, lambda: self.log(f"⚠️ 警告：最終影片沒有音訊"))
                 
-                # 輸出影片
+                # 輸出影片 - 使用簡化但有效的參數
                 self.root.after(0, lambda: self.log(f"開始輸出影片：{output_filename}"))
-                final_clip.write_videofile(output_path, 
-                                         fps=24,
-                                         codec='libx264',
-                                         audio_codec='aac',
-                                         audio_bitrate='128k',
-                                         audio_fps=44100,
-                                         temp_audiofile=temp_audio_path,
-                                         remove_temp=True,
-                                         write_logfile=False,
-                                         logger=None)
+                
+                # 方法1：基本參數（測試證明有效）
+                try:
+                    final_clip.write_videofile(output_path, 
+                                             fps=24,
+                                             codec='libx264',
+                                             audio_codec='aac',
+                                             write_logfile=False,
+                                             logger=None)
+                    self.root.after(0, lambda: self.log(f"✅ 影片輸出成功"))
+                except Exception as e:
+                    self.root.after(0, lambda: self.log(f"方法1失敗，嘗試方法2: {e}"))
+                    
+                    # 方法2：使用臨時音頻檔案
+                    temp_audio_path = os.path.join(self.temp_dir, f"temp_audio_{group_num}_{time.time()}.wav")
+                    try:
+                        final_clip.write_videofile(output_path, 
+                                                 fps=24,
+                                                 codec='libx264',
+                                                 audio_codec='aac',
+                                                 temp_audiofile=temp_audio_path,
+                                                 remove_temp=True,
+                                                 write_logfile=False,
+                                                 logger=None)
+                        self.root.after(0, lambda: self.log(f"✅ 影片輸出成功（方法2）"))
+                    except Exception as e2:
+                        self.root.after(0, lambda: self.log(f"所有輸出方法都失敗: {e2}"))
+                        raise e2
                 
                 # 釋放資源
                 final_clip.close()
