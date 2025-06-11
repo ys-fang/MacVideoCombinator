@@ -613,7 +613,6 @@ class VideoCombinatorApp:
                                          temp_audiofile=temp_audio_path,
                                          remove_temp=True,
                                          write_logfile=False,
-                                         verbose=False,
                                          logger=None)
                 
                 # 釋放資源
