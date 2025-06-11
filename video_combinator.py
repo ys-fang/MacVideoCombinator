@@ -604,23 +604,28 @@ class VideoCombinatorApp:
                 else:
                     self.root.after(0, lambda: self.log(f"⚠️ 警告：最終影片沒有音訊"))
                 
-                # 輸出影片 - 使用簡化但有效的參數
+                # 輸出影片 - 確保所有臨時檔案都在可寫入的目錄
                 self.root.after(0, lambda: self.log(f"開始輸出影片：{output_filename}"))
                 
-                # 方法1：基本參數（測試證明有效）
+                # 創建唯一的臨時音頻檔案名稱
+                temp_audio_filename = f"temp_audio_{group_num}_{int(time.time() * 1000)}.wav"
+                temp_audio_path = os.path.join(self.temp_dir, temp_audio_filename)
+                
+                # 設定 MoviePy 環境變數，強制使用我們的臨時目錄
+                import os as os_module
+                original_temp_dir = os_module.environ.get('TEMP', '')
+                original_tmp_dir = os_module.environ.get('TMP', '')
+                original_tmpdir = os_module.environ.get('TMPDIR', '')
+                
                 try:
-                    final_clip.write_videofile(output_path, 
-                                             fps=24,
-                                             codec='libx264',
-                                             audio_codec='aac',
-                                             write_logfile=False,
-                                             logger=None)
-                    self.root.after(0, lambda: self.log(f"✅ 影片輸出成功"))
-                except Exception as e:
-                    self.root.after(0, lambda: self.log(f"方法1失敗，嘗試方法2: {e}"))
+                    # 設定環境變數指向我們的臨時目錄
+                    os_module.environ['TEMP'] = self.temp_dir
+                    os_module.environ['TMP'] = self.temp_dir
+                    os_module.environ['TMPDIR'] = self.temp_dir
                     
-                    # 方法2：使用臨時音頻檔案
-                    temp_audio_path = os.path.join(self.temp_dir, f"temp_audio_{group_num}_{time.time()}.wav")
+                    self.root.after(0, lambda: self.log(f"🗂️ 臨時目錄設定為：{self.temp_dir}"))
+                    
+                    # 方法1：基本參數 + 強制臨時目錄
                     try:
                         final_clip.write_videofile(output_path, 
                                                  fps=24,
@@ -630,10 +635,65 @@ class VideoCombinatorApp:
                                                  remove_temp=True,
                                                  write_logfile=False,
                                                  logger=None)
-                        self.root.after(0, lambda: self.log(f"✅ 影片輸出成功（方法2）"))
-                    except Exception as e2:
-                        self.root.after(0, lambda: self.log(f"所有輸出方法都失敗: {e2}"))
-                        raise e2
+                        self.root.after(0, lambda: self.log(f"✅ 影片輸出成功"))
+                        
+                    except Exception as e:
+                        self.root.after(0, lambda err=str(e): self.log(f"方法1失敗: {err}"))
+                        
+                        # 方法2：嘗試不同的編碼器
+                        try:
+                            # 清理之前的臨時檔案
+                            if os.path.exists(temp_audio_path):
+                                os.remove(temp_audio_path)
+                            
+                            # 使用新的臨時檔案名稱
+                            temp_audio_filename2 = f"temp_audio2_{group_num}_{int(time.time() * 1000)}.wav"
+                            temp_audio_path2 = os.path.join(self.temp_dir, temp_audio_filename2)
+                            
+                            self.root.after(0, lambda: self.log(f"嘗試方法2，臨時音頻：{temp_audio_path2}"))
+                            
+                            final_clip.write_videofile(output_path, 
+                                                     fps=24,
+                                                     codec='libx264',
+                                                     audio_codec='libmp3lame',  # 改用mp3編碼
+                                                     temp_audiofile=temp_audio_path2,
+                                                     remove_temp=True,
+                                                     write_logfile=False,
+                                                     logger=None)
+                            self.root.after(0, lambda: self.log(f"✅ 影片輸出成功（方法2）"))
+                            
+                        except Exception as e2:
+                            self.root.after(0, lambda err=str(e2): self.log(f"方法2也失敗: {err}"))
+                            
+                            # 方法3：最基本的輸出（可能沒有音頻）
+                            try:
+                                self.root.after(0, lambda: self.log(f"嘗試方法3：基本輸出（可能無音頻）"))
+                                final_clip.write_videofile(output_path, 
+                                                         fps=24,
+                                                         codec='libx264',
+                                                         write_logfile=False,
+                                                         logger=None)
+                                self.root.after(0, lambda: self.log(f"⚠️ 影片輸出成功但可能無音頻（方法3）"))
+                            except Exception as e3:
+                                self.root.after(0, lambda err=str(e3): self.log(f"所有輸出方法都失敗: {err}"))
+                                raise e3
+                    
+                finally:
+                    # 恢復原始環境變數
+                    if original_temp_dir:
+                        os_module.environ['TEMP'] = original_temp_dir
+                    elif 'TEMP' in os_module.environ:
+                        del os_module.environ['TEMP']
+                        
+                    if original_tmp_dir:
+                        os_module.environ['TMP'] = original_tmp_dir
+                    elif 'TMP' in os_module.environ:
+                        del os_module.environ['TMP']
+                        
+                    if original_tmpdir:
+                        os_module.environ['TMPDIR'] = original_tmpdir
+                    elif 'TMPDIR' in os_module.environ:
+                        del os_module.environ['TMPDIR']
                 
                 # 釋放資源
                 final_clip.close()
