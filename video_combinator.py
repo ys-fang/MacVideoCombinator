@@ -622,13 +622,19 @@ class VideoCombinatorApp:
                     
                     self.root.after(0, lambda: self.log(f"🗂️ 臨時目錄設定為：{self.temp_dir}"))
                     
-                    # 輸出影片 - 使用測試證明有效的基本AAC方法
+                    # 輸出影片 - 使用測試證明有效的基本AAC方法，並強制臨時檔案路徑
                     self.root.after(0, lambda: self.log(f"開始輸出影片：{output_filename}"))
+
+                    # 創建一個唯一的臨時音頻檔案路徑
+                    temp_audio_path = os.path.join(self.temp_dir, f"temp-audio-{int(time.time() * 1000)}.m4a")
+                    self.root.after(0, lambda: self.log(f"🎧 強制臨時音頻路徑為: {temp_audio_path}"))
                     
-                    final_clip.write_videofile(output_path, 
+                    final_clip.write_videofile(output_path,
                                              fps=24,
                                              codec='libx264',
                                              audio_codec='aac',
+                                             temp_audiofile=temp_audio_path,
+                                             remove_temp=True,
                                              write_logfile=False,
                                              logger=None)
                     
