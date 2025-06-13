@@ -45,8 +45,12 @@ a = Analysis(
         'PIL',
         'PIL.Image',
         'moviepy',
-        'numpy',
-        'opencv-cv2'
+        'imageio',
+        'imageio_ffmpeg',
+        'proglog',
+        'decorator',
+        'requests',
+        'numpy'
     ],
     hookspath=[],
     hooksconfig={},
